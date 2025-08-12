@@ -1,0 +1,30 @@
+{
+  "name": "project/mu-plugins",
+  "description": "Custom MU Plugins for WordPress Project",
+  "type": "project",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "Your Name",
+      "email": "your.email@example.com"
+    }
+  ],
+  "require": {
+    "php": ">=7.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "Project\\MU\\": "src/"
+    },
+    "files": [
+      "src/Core/Helpers.php"
+    ]
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}
