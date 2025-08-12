@@ -135,6 +135,7 @@ class WC_LearnDash_Access_Manager {
     
     /**
      * Filter course content to show purchase notice for expired/non-logged-in users
+     * Only use this as fallback - JavaScript injection is primary method
      */
     public function filter_course_content($content) {
         if (!is_singular('sfwd-courses')) {
@@ -148,6 +149,11 @@ class WC_LearnDash_Access_Manager {
         // Skip for admins
         if ($user_id && current_user_can('manage_options')) {
             return $content;
+        }
+        
+        // Only filter content if JavaScript injection is not active
+        if (isset($this->expired_course_id)) {
+            return $content; // Let JavaScript handle it
         }
         
         // For non-logged-in users, always show purchase incentive
