@@ -125,12 +125,12 @@ class WC_LearnDash_Access_Manager {
                 echo '<option value="' . esc_attr($course->ID) . '" ' . $selected . '>' . esc_html($course->post_title) . '</option>';
             }
             echo '</select>';
-            echo '<span class="description">' . __('Hold Ctrl/Cmd to select multiple courses. Customers will get access to all selected courses.', 'wc-learndash') . '</span>';
+            echo '<span class="description">החזק Ctrl/Cmd לבחירת קורסים מרובים. לקוחות יקבלו גישה לכל הקורסים הנבחרים.</span>';
             echo '</p>';
         } else {
             echo '<p class="form-field form-field-wide">';
-            echo '<label><strong>' . __('No LearnDash Courses Found', 'wc-learndash') . '</strong></label>';
-            echo '<span class="description">Please create some LearnDash courses first, then return to configure access.</span>';
+            echo '<label><strong>לא נמצאו קורסי LearnDash</strong></label>';
+            echo '<span class="description">אנא צור קורסי LearnDash תחילה, ולאחר מכן חזור להגדיר גישה.</span>';
             echo '</p>';
         }
         
@@ -141,18 +141,18 @@ class WC_LearnDash_Access_Manager {
         
         if ($current_duration || $current_custom_date || $current_courses) {
             echo '<div class="wc-learndash-preview" style="background: #fff; border: 1px solid #c3c4c7; padding: 12px; margin: 10px 0; border-radius: 4px;">';
-            echo '<h4 style="margin: 0 0 8px 0; color: #1d2327;">Current Settings Preview:</h4>';
+            echo '<h4 style="margin: 0 0 8px 0; color: #1d2327;">תצוגה מקדימה של הגדרות נוכחיות:</h4>';
             
             if ($current_duration) {
-                echo '<p><strong>Duration:</strong> ' . esc_html($this->access_options[$current_duration] ?? $current_duration) . '</p>';
+                echo '<p><strong>משך זמן:</strong> ' . esc_html($this->access_options[$current_duration] ?? $current_duration) . '</p>';
             }
             
             if ($current_custom_date) {
-                echo '<p><strong>Custom End Date:</strong> ' . esc_html($current_custom_date) . ' <em>(overrides duration)</em></p>';
+                echo '<p><strong>תאריך סיום מותאם אישית:</strong> ' . esc_html($current_custom_date) . ' <em>(עוקף את משך הזמן)</em></p>';
             }
             
             if ($current_courses && is_array($current_courses)) {
-                echo '<p><strong>Courses (' . count($current_courses) . '):</strong><br>';
+                echo '<p><strong>קורסים (' . count($current_courses) . '):</strong><br>';
                 foreach ($current_courses as $course_id) {
                     $course_title = get_the_title($course_id);
                     echo '• ' . esc_html($course_title) . '<br>';
@@ -161,7 +161,7 @@ class WC_LearnDash_Access_Manager {
             }
             
             if (!$current_duration && !$current_custom_date) {
-                echo '<p style="color: #d63638;"><strong>⚠️ Warning:</strong> No access duration set - customers will get permanent access!</p>';
+                echo '<p style="color: #d63638;"><strong>⚠️ אזהרה:</strong> לא הוגדר משך זמן גישה - לקוחות יקבלו גישה קבועה!</p>';
             }
             
             echo '</div>';
