@@ -20,6 +20,9 @@ class WC_LearnDash_Access_Manager {
         'access_1year' => 'גישה לשנה'
     ];
     
+    private $expired_course_id;
+    private $expired_user_id;
+    
     public function __construct() {
         add_action('plugins_loaded', [$this, 'init']);
         add_action('admin_enqueue_scripts', [$this, 'admin_scripts']);
@@ -59,6 +62,11 @@ class WC_LearnDash_Access_Manager {
         add_action('show_user_profile', [$this, 'show_user_access_fields']);
         add_action('edit_user_profile', [$this, 'show_user_access_fields']);
         
+        // Course access control system
+        add_action('template_redirect', [$this, 'check_course_access_on_load']);
+        add_filter('the_content', [$this, 'filter_course_content'], 999);
+        add_filter('learndash_course_content', [$this, 'filter_course_content'], 999);
+        
         // Debug action to verify plugin is loading
         add_action('admin_init', [$this, 'debug_plugin_loaded']);
     }
@@ -68,6 +76,244 @@ class WC_LearnDash_Access_Manager {
             error_log('WC LearnDash Access Manager: Plugin loaded successfully');
             wp_die('Plugin is loaded! Check error log for confirmation.');
         }
+    }
+    
+    /**
+     * Check course access on template load
+     */
+    public function check_course_access_on_load() {
+        if (!is_singular('sfwd-courses')) {
+            return;
+        }
+        
+        $course_id = get_the_ID();
+        $user_id = get_current_user_id();
+        
+        error_log("WC LearnDash Debug: Checking access for Course ID: $course_id, User ID: $user_id");
+        
+        // For non-logged-in users, show purchase incentive
+        if (!$user_id) {
+            error_log("WC LearnDash Debug: Non-logged-in user - showing purchase incentive");
+            add_action('wp_head', [$this, 'add_expired_course_styles']);
+            add_action('wp_footer', [$this, 'inject_purchase_notice_javascript']);
+            $this->expired_course_id = $course_id;
+            $this->expired_user_id = 0;
+            return;
+        }
+        
+        // For logged-in users, check expiration
+        $expire_key = "course_{$course_id}_access_expires";
+        $expires = get_user_meta($user_id, $expire_key, true);
+        
+        error_log("WC LearnDash Debug: Expiration timestamp for user $user_id, course $course_id: " . ($expires ?: 'none'));
+        
+        if (!$expires) {
+            error_log("WC LearnDash Debug: No custom expiration set - allowing access");
+            return; // No custom expiration set, allow access
+        }
+        
+        $current_time = current_time('timestamp');
+        $expires_formatted = date('Y-m-d H:i:s', $expires);
+        $current_formatted = date('Y-m-d H:i:s', $current_time);
+        
+        error_log("WC LearnDash Debug: Current time: $current_formatted, Expires: $expires_formatted");
+        
+        if ($expires <= $current_time) {
+            error_log("WC LearnDash: ACCESS EXPIRED - Showing purchase option for expired course access - User: $user_id, Course: $course_id");
+            
+            // Set up content filtering and JavaScript injection
+            add_action('wp_head', [$this, 'add_expired_course_styles']);
+            add_action('wp_footer', [$this, 'inject_purchase_notice_javascript']);
+            
+            // Store course info for JavaScript injection
+            $this->expired_course_id = $course_id;
+            $this->expired_user_id = $user_id;
+        } else {
+            error_log("WC LearnDash Debug: Access still valid until $expires_formatted");
+        }
+    }
+    
+    /**
+     * Filter course content to show purchase notice for expired/non-logged-in users
+     */
+    public function filter_course_content($content) {
+        if (!is_singular('sfwd-courses')) {
+            return $content;
+        }
+        
+        global $post;
+        $course_id = $post->ID;
+        $user_id = get_current_user_id();
+        
+        // Skip for admins
+        if ($user_id && current_user_can('manage_options')) {
+            return $content;
+        }
+        
+        // For non-logged-in users, always show purchase incentive
+        if (!$user_id) {
+            error_log("WC LearnDash: Filtering content for non-logged-in user on course $course_id");
+            return $this->get_purchase_notice_html($course_id, 0);
+        }
+        
+        // For logged-in users, check expiration
+        $expire_key = "course_{$course_id}_access_expires";
+        $expires = get_user_meta($user_id, $expire_key, true);
+        
+        if (!$expires) {
+            return $content; // No expiration set, allow access
+        }
+        
+        $current_time = current_time('timestamp');
+        
+        if ($expires <= $current_time) {
+            error_log("WC LearnDash: Filtering content for expired user $user_id on course $course_id");
+            return $this->get_purchase_notice_html($course_id, $user_id);
+        }
+        
+        return $content;
+    }
+    
+    /**
+     * Get the purchase notice HTML
+     */
+    private function get_purchase_notice_html($course_id, $user_id) {
+        $course_title = get_the_title($course_id);
+        $is_logged_in = $user_id > 0;
+        
+        $title = $is_logged_in ? 'תוקף הגישה פג' : 'נדרשת רכישה לגישה לקורס';
+        $message = $is_logged_in 
+            ? "תוקף הגישה לקורס <strong>{$course_title}</strong> פג."
+            : "לצפייה בקורס <strong>{$course_title}</strong> נדרשת רכישה.";
+        $action_text = $is_logged_in ? 'לחידוש הגישה, אנא רכוש את הקורס מחדש:' : 'בחר את החבילה המתאימה לך:';
+        
+        return '<div id="wc-learndash-expired-notice-container">
+            <div class="expired-course-access-notice" style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 20px; margin: 20px auto; max-width: 800px; text-align: center; animation: fadeIn 0.5s ease-in;">
+                <h2 style="color: #856404; margin-top: 0;">
+                    <img draggable="false" role="img" class="emoji" alt="⏰" src="https://s.w.org/images/core/emoji/16.0.1/svg/23f0.svg"> ' . $title . '
+                </h2>
+                <p style="font-size: 16px; color: #856404;">' . $message . '</p>
+                <p style="color: #856404;">' . $action_text . '</p>
+                <div style="margin: 15px 0;">
+                    <a href="' . home_url('/product/מנוי-תרגול-לאתר/') . '" class="purchase-button" style="background: #0073aa; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 5px; display: inline-block; font-weight: bold; transition: all 0.3s ease;">
+                        <img draggable="false" role="img" class="emoji" alt="🛒" src="https://s.w.org/images/core/emoji/16.0.1/svg/1f6d2.svg"> מנוי תרגול לאתר
+                    </a>
+                    <a href="' . home_url('/product/מנוי-תרגול/') . '" class="purchase-button" style="background: #0073aa; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 5px; display: inline-block; font-weight: bold; transition: all 0.3s ease;">
+                        <img draggable="false" role="img" class="emoji" alt="🛒" src="https://s.w.org/images/core/emoji/16.0.1/svg/1f6d2.svg"> מנוי תרגול
+                    </a>
+                    <a href="' . home_url('/קורס-מקוון/') . '" class="purchase-button" style="background: #0073aa; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 5px; display: inline-block; font-weight: bold; transition: all 0.3s ease;">
+                        <img draggable="false" role="img" class="emoji" alt="🛒" src="https://s.w.org/images/core/emoji/16.0.1/svg/1f6d2.svg"> קורס מקוון
+                    </a>
+                </div>
+                <p style="font-size: 14px; color: #6c757d; margin-bottom: 0;">
+                    צריך עזרה? <a href="' . home_url('/contact') . '">צור קשר עם התמיכה</a>
+                </p>
+            </div>
+        </div>';
+    }
+    
+    /**
+     * Add CSS styles for expired course notice
+     */
+    public function add_expired_course_styles() {
+        echo '<style>
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .purchase-button:hover {
+                background: #005177 !important;
+                transform: translateY(-2px);
+            }
+            .expired-course-access-notice {
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            }
+        </style>';
+    }
+    
+    /**
+     * Inject purchase notice via JavaScript for Elementor compatibility
+     */
+    public function inject_purchase_notice_javascript() {
+        if (!isset($this->expired_course_id)) {
+            return;
+        }
+        
+        $course_id = $this->expired_course_id;
+        $user_id = $this->expired_user_id;
+        $course_title = get_the_title($course_id);
+        $is_logged_in = $user_id > 0;
+        
+        $title = $is_logged_in ? 'תוקף הגישה פג' : 'נדרשת רכישה לגישה לקורס';
+        $message = $is_logged_in 
+            ? "תוקף הגישה לקורס <strong>{$course_title}</strong> פג."
+            : "לצפייה בקורס <strong>{$course_title}</strong> נדרשת רכישה.";
+        $action_text = $is_logged_in ? 'לחידוש הגישה, אנא רכוש את הקורס מחדש:' : 'בחר את החבילה המתאימה לך:';
+        
+        ?>
+        <script>
+        jQuery(document).ready(function($) {
+            console.log('WC LearnDash: Initializing purchase notice injection');
+            
+            function injectPurchaseNotice() {
+                // Try multiple selectors for robust injection
+                var selectors = [
+                    '.elementor-element-5b10972 .learndash-wrapper--course',
+                    '.learndash-wrapper--course:first',
+                    '.ld-course-navigation + .learndash',
+                    '.learndash.learndash_course_content',
+                    '#wc-learndash-expired-notice-container'
+                ];
+                
+                var injected = false;
+                
+                for (var i = 0; i < selectors.length; i++) {
+                    var $container = $(selectors[i]);
+                    if ($container.length > 0 && !$container.find('.expired-course-access-notice').length) {
+                        console.log('WC LearnDash: Injecting notice into selector: ' + selectors[i]);
+                        
+                        var noticeHtml = '<div class="expired-course-access-notice" style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 20px; margin: 20px auto; max-width: 800px; text-align: center; animation: fadeIn 0.5s ease-in;">' +
+                            '<h2 style="color: #856404; margin-top: 0;">' +
+                                '<img draggable="false" role="img" class="emoji" alt="⏰" src="https://s.w.org/images/core/emoji/16.0.1/svg/23f0.svg"> <?php echo $title; ?>' +
+                            '</h2>' +
+                            '<p style="font-size: 16px; color: #856404;"><?php echo $message; ?></p>' +
+                            '<p style="color: #856404;"><?php echo $action_text; ?></p>' +
+                            '<div style="margin: 15px 0;">' +
+                                '<a href="<?php echo home_url('/product/מנוי-תרגול-לאתר/'); ?>" class="purchase-button" style="background: #0073aa; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 5px; display: inline-block; font-weight: bold; transition: all 0.3s ease;">' +
+                                    '<img draggable="false" role="img" class="emoji" alt="🛒" src="https://s.w.org/images/core/emoji/16.0.1/svg/1f6d2.svg"> מנוי תרגול לאתר' +
+                                '</a>' +
+                                '<a href="<?php echo home_url('/product/מנוי-תרגול/'); ?>" class="purchase-button" style="background: #0073aa; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 5px; display: inline-block; font-weight: bold; transition: all 0.3s ease;">' +
+                                    '<img draggable="false" role="img" class="emoji" alt="🛒" src="https://s.w.org/images/core/emoji/16.0.1/svg/1f6d2.svg"> מנוי תרגול' +
+                                '</a>' +
+                                '<a href="<?php echo home_url('/קורס-מקוון/'); ?>" class="purchase-button" style="background: #0073aa; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 5px; display: inline-block; font-weight: bold; transition: all 0.3s ease;">' +
+                                    '<img draggable="false" role="img" class="emoji" alt="🛒" src="https://s.w.org/images/core/emoji/16.0.1/svg/1f6d2.svg"> קורס מקוון' +
+                                '</a>' +
+                            '</div>' +
+                            '<p style="font-size: 14px; color: #6c757d; margin-bottom: 0;">' +
+                                'צריך עזרה? <a href="<?php echo home_url('/contact'); ?>">צור קשר עם התמיכה</a>' +
+                            '</p>' +
+                        '</div>';
+                        
+                        $container.html(noticeHtml);
+                        injected = true;
+                        break;
+                    }
+                }
+                
+                if (!injected) {
+                    console.log('WC LearnDash: No suitable container found, retrying in 1 second');
+                    setTimeout(injectPurchaseNotice, 1000);
+                }
+            }
+            
+            // Try immediate injection
+            injectPurchaseNotice();
+            
+            // Also try after a short delay for dynamic content
+            setTimeout(injectPurchaseNotice, 500);
+        });
+        </script>
+        <?php
     }
     
     public function woocommerce_missing_notice() {
