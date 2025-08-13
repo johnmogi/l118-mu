@@ -54,14 +54,45 @@ function inject_single_lesson_video() {
         return;
     }
     
-    // Generate YouTube embed
+    // Generate video embed - support both YouTube and MP4
     $video_html = '';
+    
+    // Handle YouTube URLs
     if (strpos($video_url, 'youtu.be') !== false || strpos($video_url, 'youtube.com') !== false) {
         preg_match('/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/', $video_url, $matches);
         if (!empty($matches[1])) {
             $video_id = $matches[1];
             $video_html = '<div class="ld-video"><iframe width="100%" height="400" src="https://www.youtube.com/embed/' . esc_attr($video_id) . '" frameborder="0" allowfullscreen></iframe></div>';
         }
+    }
+    // Handle MP4 and other video formats
+    elseif (preg_match('/\.(mp4|webm|ogg|mov|avi)(\?.*)?$/i', $video_url)) {
+        // Determine MIME type based on extension
+        $extension = strtolower(pathinfo(parse_url($video_url, PHP_URL_PATH), PATHINFO_EXTENSION));
+        $mime_types = [
+            'mp4' => 'video/mp4',
+            'webm' => 'video/webm',
+            'ogg' => 'video/ogg',
+            'mov' => 'video/quicktime',
+            'avi' => 'video/x-msvideo'
+        ];
+        $mime_type = isset($mime_types[$extension]) ? $mime_types[$extension] : 'video/mp4';
+        
+        $video_html = '<div class="ld-video" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden;">
+            <video 
+                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;" 
+                controls 
+                preload="metadata"
+                crossorigin="anonymous"
+                playsinline>
+                <source src="' . esc_url($video_url) . '" type="' . $mime_type . '">
+                Your browser does not support the video tag.
+            </video>
+        </div>';
+    }
+    // Handle other video URLs (Vimeo, etc.) - fallback to iframe
+    elseif (filter_var($video_url, FILTER_VALIDATE_URL)) {
+        $video_html = '<div class="ld-video"><iframe width="100%" height="400" src="' . esc_url($video_url) . '" frameborder="0" allowfullscreen></iframe></div>';
     }
     
     if (empty($video_html)) {
@@ -80,11 +111,15 @@ function inject_single_lesson_video() {
     document.addEventListener('DOMContentLoaded', function() {
         console.log('📄 DOM loaded, injecting video...');
         
-        // Try multiple injection points
+        // Try multiple injection points - prioritize higher positions
         const selectors = [
+            '.ld-lesson-content-wrapper',
+            '.ld-lesson-content',
+            '.learndash-wrapper .ld-item-wrap',
             '.elementor-widget-theme-post-content .elementor-widget-container',
             '.entry-content',
             '.learndash-wrapper',
+            'main .learndash',
             'main',
             'article',
             'body'
@@ -153,19 +188,57 @@ function inject_course_accordion_videos() {
         $video_enabled = !empty($lesson_settings['lesson_video_enabled']);
         
         if (!empty($video_url) && $video_enabled) {
-            // Generate YouTube embed
+            $video_html = '';
+            
+            // Handle YouTube URLs
             if (strpos($video_url, 'youtu.be') !== false || strpos($video_url, 'youtube.com') !== false) {
                 preg_match('/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/', $video_url, $matches);
                 if (!empty($matches[1])) {
                     $video_id = $matches[1];
-                    $video_html = '<div class="ld-video"><iframe width="100%" height="450" src="https://www.youtube.com/embed/' . esc_attr($video_id) . '" frameborder="0" allowfullscreen></iframe></div>';
-                    
-                    $lesson_videos[$lesson_id] = array(
-                        'url' => $video_url,
-                        'html' => $video_html,
-                        'slug' => $lesson['post']->post_name
-                    );
+                    $video_html = '<div class="ld-video" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%;">' .
+                        '<iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" ' .
+                        'src="https://www.youtube.com/embed/' . esc_attr($video_id) . '?rel=0" ' .
+                        'allowfullscreen></iframe></div>';
                 }
+            }
+            // Handle MP4 and other video formats
+            elseif (preg_match('/\.(mp4|webm|ogg|mov|avi)(\?.*)?$/i', $video_url)) {
+                // Determine MIME type based on extension
+                $extension = strtolower(pathinfo(parse_url($video_url, PHP_URL_PATH), PATHINFO_EXTENSION));
+                $mime_types = [
+                    'mp4' => 'video/mp4',
+                    'webm' => 'video/webm',
+                    'ogg' => 'video/ogg',
+                    'mov' => 'video/quicktime',
+                    'avi' => 'video/x-msvideo'
+                ];
+                $mime_type = isset($mime_types[$extension]) ? $mime_types[$extension] : 'video/mp4';
+                
+                $video_html = '<div class="ld-video" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden; border-radius: 8px;">
+                    <video 
+                        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; border-radius: 8px;" 
+                        controls 
+                        preload="metadata"
+                        crossorigin="anonymous"
+                        playsinline>
+                        <source src="' . esc_url($video_url) . '" type="' . $mime_type . '">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>';
+            }
+            // Handle other video URLs (Vimeo, etc.) - fallback to iframe
+            elseif (filter_var($video_url, FILTER_VALIDATE_URL)) {
+                $video_html = '<div class="ld-video" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%;">' .
+                    '<iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" ' .
+                    'src="' . esc_url($video_url) . '" allowfullscreen></iframe></div>';
+            }
+            
+            if (!empty($video_html)) {
+                $lesson_videos[$lesson_id] = array(
+                    'url' => $video_url,
+                    'html' => $video_html,
+                    'slug' => $lesson['post']->post_name
+                );
             }
         }
     }
@@ -222,14 +295,33 @@ function inject_course_accordion_videos() {
                     const videoDiv = document.createElement('div');
                     videoDiv.innerHTML = videoData.html;
                     
-                    // Fix iframe styling to prevent tiny grey square
+                    // Fix styling for both iframe and video elements
                     const iframe = videoDiv.querySelector('iframe');
+                    const video = videoDiv.querySelector('video');
+                    
                     if (iframe) {
                         iframe.style.width = '100%';
                         iframe.style.height = '450px'; // Increased height for better visibility
                         iframe.style.maxWidth = '100%';
                         iframe.style.display = 'block';
                         iframe.removeAttribute('height'); // Remove conflicting height attribute
+                    }
+                    
+                    if (video) {
+                        video.style.width = '100%';
+                        video.style.height = 'auto';
+                        video.style.maxWidth = '100%';
+                        video.style.display = 'block';
+                        video.style.borderRadius = '8px';
+                        video.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                    }
+                    
+                    // Ensure the video container has proper styling
+                    const videoContainer = videoDiv.querySelector('.ld-video');
+                    if (videoContainer) {
+                        videoContainer.style.position = 'relative';
+                        videoContainer.style.maxWidth = '100%';
+                        videoContainer.style.margin = '15px 0';
                     }
                     
                     videoWrapper.appendChild(videoDiv);
