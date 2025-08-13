@@ -113,15 +113,38 @@ class LD_Instructor_Quiz_Categories {
             return;
         }
         
-        // Check user permissions
+        // Check user permissions - works for both admin and instructor roles
         if (!current_user_can('edit_post', $post_id)) {
+            // Log permission issue for debugging
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: User does not have permission to edit this quiz (ID: ' . $post_id . ')');
+                error_log('LD Quiz Categories: Current user capabilities: ' . print_r(wp_get_current_user()->allcaps, true));
+            }
             unset($processing[$post_id]);
             return;
         }
         
-        // Verify nonce
-        if (!isset($_POST['ld_instructor_quiz_categories_nonce']) || 
-            !wp_verify_nonce($_POST['ld_instructor_quiz_categories_nonce'], 'save_quiz_categories')) {
+        // Verify nonce - make it work with both standard and AJAX submissions
+        $nonce_verified = false;
+        $nonce = '';
+        
+        // Check for nonce in standard form submission
+        if (isset($_POST['ld_instructor_quiz_categories_nonce'])) {
+            $nonce = $_POST['ld_instructor_quiz_categories_nonce'];
+            $nonce_verified = wp_verify_nonce($nonce, 'save_quiz_categories');
+        } 
+        // Check for nonce in AJAX submission (instructor dashboard might use this)
+        elseif (isset($_REQUEST['_ajax_nonce']) && isset($_REQUEST['action']) && $_REQUEST['action'] === 'save_quiz_categories') {
+            $nonce = $_REQUEST['_ajax_nonce'];
+            $nonce_verified = wp_verify_nonce($nonce, 'save_quiz_categories');
+        }
+        
+        if (!$nonce_verified) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: Security check failed for quiz ID: ' . $post_id);
+                error_log('LD Quiz Categories: Nonce: ' . $nonce);
+                error_log('LD Quiz Categories: _POST: ' . print_r($_POST, true));
+            }
             unset($processing[$post_id]);
             return;
         }
@@ -198,7 +221,15 @@ class LD_Instructor_Quiz_Categories {
      */
     private function populate_quiz_with_questions($quiz_id, $selected_categories) {
         if (empty($selected_categories)) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: No categories selected for quiz ID: ' . $quiz_id);
+            }
             return;
+        }
+        
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('LD Quiz Categories: Starting population for quiz ID: ' . $quiz_id);
+            error_log('LD Quiz Categories: Selected categories: ' . print_r($selected_categories, true));
         }
         
         // Find quizzes in the selected categories using the WORKING approach
@@ -217,20 +248,42 @@ class LD_Instructor_Quiz_Categories {
             )
         ));
         
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('LD Quiz Categories: Found ' . count($quizzes_in_categories) . ' quizzes in selected categories');
+            if (!empty($quizzes_in_categories)) {
+                error_log('LD Quiz Categories: First 5 quiz IDs: ' . implode(', ', array_slice($quizzes_in_categories, 0, 5)));
+            }
+        }
+        
         // Extract questions using the RELOCATED PROCESSING approach that works
         $extracted_questions = array();
+        $debug_question_sources = array('ld_quiz_questions' => 0, 'proquiz' => 0);
         
         if (is_array($quizzes_in_categories) && count($quizzes_in_categories) > 0) {
             // Process up to 20 quizzes to get a good pool of questions
             $quizzes_to_process = array_slice($quizzes_in_categories, 0, 20);
             
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: Processing ' . count($quizzes_to_process) . ' quizzes for questions');
+            }
+            
             foreach ($quizzes_to_process as $source_quiz_id) {
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log("LD Quiz Categories: Processing quiz ID: $source_quiz_id");
+                }
+                
                 // Get quiz metadata using multiple methods
                 $ld_quiz_questions = get_post_meta($source_quiz_id, 'ld_quiz_questions', true);
                 $quiz_pro_id = get_post_meta($source_quiz_id, 'quiz_pro_id', true);
                 
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log("LD Quiz Categories: - Found " . (is_array($ld_quiz_questions) ? count($ld_quiz_questions) : 0) . " questions in ld_quiz_questions");
+                    error_log("LD Quiz Categories: - ProQuiz ID: " . ($quiz_pro_id ? $quiz_pro_id : 'Not found'));
+                }
+                
                 // Extract questions from ld_quiz_questions if available
                 if (!empty($ld_quiz_questions) && is_array($ld_quiz_questions)) {
+                    $initial_count = count($extracted_questions);
                     // CRITICAL FIX: Only extract valid LearnDash questions
                     foreach (array_keys($ld_quiz_questions) as $question_id) {
                         // Verify this is actually a LearnDash question
@@ -238,6 +291,7 @@ class LD_Instructor_Quiz_Categories {
                             $extracted_questions[] = $question_id;
                         }
                     }
+                    $debug_question_sources['ld_quiz_questions'] += (count($extracted_questions) - $initial_count);
                 }
                 
                 // Try to extract from ProQuiz database if quiz_pro_id exists
@@ -247,8 +301,11 @@ class LD_Instructor_Quiz_Categories {
                         "SELECT id FROM {$wpdb->prefix}learndash_pro_quiz_question WHERE quiz_id = %d",
                         $quiz_pro_id
                     ));
+                    
                     if (!empty($proquiz_questions)) {
+                        $initial_count = count($extracted_questions);
                         $extracted_questions = array_merge($extracted_questions, $proquiz_questions);
+                        $debug_question_sources['proquiz'] += (count($extracted_questions) - $initial_count);
                     }
                 }
             }
@@ -266,37 +323,78 @@ class LD_Instructor_Quiz_Categories {
         }
         
         if (!empty($extracted_questions)) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: Found ' . count($extracted_questions) . ' questions to add to quiz');
+                error_log('LD Quiz Categories: Questions by source: ' . print_r($debug_question_sources, true));
+                error_log('LD Quiz Categories: First 10 question IDs: ' . implode(', ', array_slice($extracted_questions, 0, 10)));
+            }
+            
             // CRITICAL: LearnDash expects questions in specific format
             // Convert question IDs to the format LearnDash expects
             $formatted_questions = array();
+            $duplicate_count = 0;
+            
             foreach ($extracted_questions as $question_id) {
+                // Skip if we already have this question (avoid duplicates)
+                if (isset($formatted_questions[$question_id])) {
+                    $duplicate_count++;
+                    continue;
+                }
                 // LearnDash stores questions with their sort order
                 $formatted_questions[$question_id] = count($formatted_questions) + 1;
             }
             
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: After deduplication, ' . count($formatted_questions) . ' unique questions remain');
+                if ($duplicate_count > 0) {
+                    error_log("LD Quiz Categories: Removed $duplicate_count duplicate questions");
+                }
+            }
+            
             // Update quiz with formatted questions
-            update_post_meta($quiz_id, 'ld_quiz_questions', $formatted_questions);
-            update_post_meta($quiz_id, '_ld_quiz_dirty', true);
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: Updating quiz with ' . count($formatted_questions) . ' questions');
+            }
+            
+            $update_result = update_post_meta($quiz_id, 'ld_quiz_questions', $formatted_questions);
+            $dirty_result = update_post_meta($quiz_id, '_ld_quiz_dirty', true);
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: Update results - ld_quiz_questions: ' . ($update_result ? 'success' : 'failed or no change') . 
+                         ', _ld_quiz_dirty: ' . ($dirty_result ? 'success' : 'failed or no change'));
+            }
             
             // CRITICAL: Update ProQuiz database - this is essential for quiz builder
             $target_quiz_pro_id = get_post_meta($quiz_id, 'quiz_pro_id', true);
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: Updating ProQuiz database for quiz_pro_id: ' . ($target_quiz_pro_id ? $target_quiz_pro_id : 'Not found'));
+            }
+            
             if (!empty($target_quiz_pro_id)) {
                 global $wpdb;
                 
                 // First, clear existing questions from ProQuiz
-                $wpdb->delete(
+                $deleted = $wpdb->delete(
                     $wpdb->prefix . 'learndash_pro_quiz_question',
                     array('quiz_id' => $target_quiz_pro_id),
                     array('%d')
                 );
                 
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('LD Quiz Categories: Cleared ' . $deleted . ' existing questions from ProQuiz');
+                }
+                
                 // Insert questions into ProQuiz database
                 $sort_order = 1;
+                $inserted_count = 0;
+                $error_count = 0;
+                
                 foreach ($extracted_questions as $question_id) {
                     // Get question data
                     $question_post = get_post($question_id);
                     if ($question_post) {
-                        $wpdb->insert(
+                        $result = $wpdb->insert(
                             $wpdb->prefix . 'learndash_pro_quiz_question',
                             array(
                                 'quiz_id' => $target_quiz_pro_id,
@@ -314,24 +412,54 @@ class LD_Instructor_Quiz_Categories {
                             ),
                             array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s')
                         );
+                        
+                        if ($result === false) {
+                            $error_count++;
+                            if (defined('WP_DEBUG') && WP_DEBUG) {
+                                error_log("LD Quiz Categories: Failed to insert question ID $question_id: " . $wpdb->last_error);
+                            }
+                        } else {
+                            $inserted_count++;
+                        }
+                        
                         $sort_order++;
                     }
+                }
+                
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log("LD Quiz Categories: ProQuiz update complete. Inserted: $inserted_count, Failed: $error_count");
                 }
                 
                 // Update ProQuiz master table with question count (only if column exists)
                 $pro_quiz_id = get_post_meta($quiz_id, 'quiz_pro_id', true);
                 if ($pro_quiz_id) {
                     $table_name = $wpdb->prefix . 'learndash_pro_quiz_master';
-                    $columns = $wpdb->get_col("DESCRIBE {$table_name}");
-                    if (in_array('question_count', $columns)) {
+                    
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log('LD Quiz Categories: Updating question count in ProQuiz master table');
+                    }
+                    
+                    // Check if the table exists and has the question_count column
+                    $columns = $wpdb->get_col("SHOW COLUMNS FROM {$table_name} LIKE 'question_count'");
+                    if (!empty($columns)) {
                         $question_count = count($extracted_questions);
-                        $wpdb->update(
+                        $result = $wpdb->update(
                             $table_name,
                             array('question_count' => $question_count),
                             array('id' => $pro_quiz_id),
                             array('%d'),
                             array('%d')
                         );
+                        
+                        if (defined('WP_DEBUG') && WP_DEBUG) {
+                            if ($result === false) {
+                                error_log('LD Quiz Categories: Failed to update question_count in ProQuiz master table: ' . $wpdb->last_error);
+                            } else if ($result === 0) {
+                                error_log('LD Quiz Categories: No rows updated in ProQuiz master table (quiz ID may not exist)');
+                            } else {
+                                error_log("LD Quiz Categories: Successfully updated question_count to $question_count in ProQuiz master table");
+                            }
+                        }
                     } else {
                         if (defined('WP_DEBUG') && WP_DEBUG) {
                             error_log('LD Quiz Categories: ProQuiz table does not have question_count column, skipping update');
@@ -341,20 +469,32 @@ class LD_Instructor_Quiz_Categories {
             }
             
             // Force LearnDash to recognize the changes
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: Triggering learndash_quiz_questions_updated action');
+            }
             do_action('learndash_quiz_questions_updated', $quiz_id, $formatted_questions);
             
             // CRITICAL: Clear LearnDash caches and force quiz builder refresh
             if (function_exists('learndash_delete_quiz_cache')) {
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('LD Quiz Categories: Clearing LearnDash quiz cache');
+                }
                 learndash_delete_quiz_cache($quiz_id);
             }
             
             // Clear WordPress object cache
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: Clearing WordPress object cache');
+            }
             wp_cache_delete($quiz_id, 'posts');
             wp_cache_delete($quiz_id . '_quiz_questions', 'learndash');
             
             // Update quiz timestamp directly in database (no hooks triggered)
             global $wpdb;
-            $wpdb->update(
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('LD Quiz Categories: Updating quiz modified timestamp');
+            }
+            $update_result = $wpdb->update(
                 $wpdb->posts,
                 array(
                     'post_modified' => current_time('mysql'),
@@ -368,11 +508,27 @@ class LD_Instructor_Quiz_Categories {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('LD Quiz Categories: Final question count: ' . count($extracted_questions) . ' from ' . count($quizzes_in_categories) . ' quizzes');
                 error_log('LD Quiz Categories: Added ' . count($extracted_questions) . ' questions to quiz ' . $quiz_id . ' and cleared caches');
-                error_log('LD Quiz Categories: Questions added: ' . implode(', ', $extracted_questions));
+                
+                if (count($extracted_questions) > 0) {
+                    error_log('LD Quiz Categories: First 10 question IDs added: ' . implode(', ', array_slice($extracted_questions, 0, 10)));
+                    if (count($extracted_questions) > 10) {
+                        error_log('LD Quiz Categories: ... and ' . (count($extracted_questions) - 10) . ' more');
+                    }
+                }
                 
                 // Verify the questions were actually saved
                 $saved_questions = get_post_meta($quiz_id, 'ld_quiz_questions', true);
                 error_log('LD Quiz Categories: Verification - saved questions count: ' . (is_array($saved_questions) ? count($saved_questions) : 'NOT ARRAY'));
+                
+                // Verify the quiz was actually updated
+                $quiz_post = get_post($quiz_id);
+                error_log('LD Quiz Categories: Quiz last modified: ' . $quiz_post->post_modified);
+                
+                // Check user capabilities
+                $current_user = wp_get_current_user();
+                error_log('LD Quiz Categories: Current user: ' . $current_user->user_login . ' (ID: ' . $current_user->ID . ')' );
+                error_log('LD Quiz Categories: User can edit this quiz: ' . (current_user_can('edit_post', $quiz_id) ? 'Yes' : 'No'));
+                error_log('LD Quiz Categories: User capabilities: ' . print_r($current_user->allcaps, true));
             }
         }
     }
