@@ -1,0 +1,84 @@
+/* Import/Export Enhancement Styles */
+.import-export-section {
+    margin: 20px 0;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.import-export-section h2 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.import-progress {
+    margin: 20px 0;
+    display: none;
+}
+
+.import-progress.visible {
+    display: block;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 20px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    margin: 10px 0;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: #0073aa;
+    width: 0%;
+    transition: width 0.3s ease;
+    text-align: center;
+    color: white;
+    line-height: 20px;
+    font-size: 12px;
+}
+
+.import-status {
+    margin: 10px 0;
+    font-weight: 600;
+}
+
+.import-status .success {
+    color: #46b450;
+}
+
+.import-status .error {
+    color: #dc3232;
+}
+
+.import-results {
+    margin-top: 20px;
+    padding: 10px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.import-results pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 782px) {
+    .import-export-section {
+        margin: 10px 0;
+        padding: 10px;
+    }
+    
+    .progress-bar {
+        font-size: 10px;
+    }
+}

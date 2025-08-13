@@ -1,0 +1,250 @@
+<div class="inside">
+
+<div class="ld-instructor-quiz-categories-wrapper">
+    <input type="hidden" id="ld_instructor_quiz_categories_nonce" name="ld_instructor_quiz_categories_nonce" value="bdf5297025"><input type="hidden" name="_wp_http_referer" value="/wp-admin/post.php?post=10579&amp;action=edit">    
+    <p>Select question categories to include in this quiz:</p>
+    
+            <div class="ld-selected-categories-info">
+            <small style="color: #0073aa; font-weight: 500;">
+                Currently selected: 4 categories            </small>
+        </div>
+        
+            <label class="ld-quiz-category-item selected">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="183" class="ld-quiz-category-checkbox" checked="checked">
+            <span class="ld-quiz-category-name">אביזרים ברכב</span>
+                    </label>
+            <label class="ld-quiz-category-item selected">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="57" class="ld-quiz-category-checkbox" checked="checked">
+            <span class="ld-quiz-category-name">אופנוע</span>
+                    </label>
+            <label class="ld-quiz-category-item selected">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="177" class="ld-quiz-category-checkbox" checked="checked">
+            <span class="ld-quiz-category-name">אורות</span>
+                    </label>
+            <label class="ld-quiz-category-item selected">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="169" class="ld-quiz-category-checkbox" checked="checked">
+            <span class="ld-quiz-category-name">הדרך והתנועה</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="166" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">הדרך לרכישת רישיון נהיגה</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="182" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">התחלת הנסיעה</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="66" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">חינוך תעבורתי</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="172" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">חנייה ועצירה</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="181" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">טיפולים שוטפים</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="168" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">יחסי משטרה-נהג</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="173" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">כללי נהיגה בסיסיים</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="165" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">לא לאלכוהול בזמן נהיגה</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="167" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">לא נוסעים בלי...</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="164" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">מה נדרש מנהג משא קל</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="170" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">מהירות</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="175" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">מפגש מסילת ברזל</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="185" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">משא קל</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="179" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">משתמשים מיוחדים בדרך</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="171" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">מתן זכות קדימה</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="174" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">עקיפה</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="178" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">פניות לסוגיהן</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="162" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">רכב פרטי</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="176" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">שמירה על מרחק</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="184" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">תאונות דרכים ומצבי מצוקה</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="180" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">תחזוקה מונעת</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="48" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">תמרורים</span>
+                    </label>
+            <label class="ld-quiz-category-item ">
+            <input type="checkbox" name="ld_instructor_quiz_categories[]" value="163" class="ld-quiz-category-checkbox">
+            <span class="ld-quiz-category-name">תמרורים</span>
+                    </label>
+        
+    <div class="ld-save-notice">
+        <small style="color: #666; font-style: italic;">
+            💡 Tip: Selected categories will be saved when you update the quiz. Questions from these categories can then be used to auto-populate the quiz.        </small>
+    </div>
+    
+        <div class="ld-test-population" style="margin-top: 15px; padding: 10px; background: #f0f6fc; border: 1px solid #0969da; border-radius: 4px;">
+        <p style="margin: 0 0 10px 0; font-weight: 500; color: #0969da;">🔧 Debug: Test Auto-Population</p>
+        <button type="button" id="test-population" class="button button-secondary" style="margin-right: 10px;">Test Population Now</button>
+        <small style="color: #656d76;">
+            Click to test if questions can be found in selected categories without saving the quiz.
+        </small>
+        <div id="population-results" style="margin-top: 10px;"><div style="padding: 8px; background: #f8d7da; border: 1px solid #f5c2c7; border-radius: 3px; color: #842029;">❌ Found 0 questions in selected categories (out of 1619 total questions). Using taxonomy: ld_quiz_category. Categories: 166</div></div>
+    </div>
+    
+    <script>
+    jQuery(document).ready(function($) {
+        $('#test-population').click(function() {
+            var button = $(this);
+            var results = $('#population-results');
+            
+            button.prop('disabled', true).text('Testing...');
+            results.hide();
+            
+            var selectedCategories = [];
+            $('input[name="ld_instructor_quiz_categories[]"]:checked').each(function() {
+                selectedCategories.push($(this).val());
+            });
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'test_quiz_population',
+                    quiz_id: 10579,
+                    categories: selectedCategories,
+                    nonce: '4929b19b74'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        results.html('<div style="padding: 8px; background: #d1e7dd; border: 1px solid #badbcc; border-radius: 3px; color: #0f5132;">✅ ' + response.data.message + '</div>').show();
+                    } else {
+                        results.html('<div style="padding: 8px; background: #f8d7da; border: 1px solid #f5c2c7; border-radius: 3px; color: #842029;">❌ ' + response.data.message + '</div>').show();
+                    }
+                },
+                error: function() {
+                    results.html('<div style="padding: 8px; background: #f8d7da; border: 1px solid #f5c2c7; border-radius: 3px; color: #842029;">❌ AJAX Error</div>').show();
+                },
+                complete: function() {
+                    button.prop('disabled', false).text('Test Population Now');
+                }
+            });
+        });
+    });
+    </script>
+    </div>
+
+<style>
+.ld-instructor-quiz-categories-wrapper {
+    padding: 10px 0;
+}
+
+.ld-selected-categories-info {
+    margin-bottom: 15px;
+    padding: 8px 12px;
+    background: #e7f3ff;
+    border-left: 3px solid #0073aa;
+    border-radius: 3px;
+}
+
+.ld-quiz-category-item {
+    display: block;
+    margin-bottom: 8px;
+    cursor: pointer;
+    padding: 6px 8px;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    border: 1px solid transparent;
+}
+
+.ld-quiz-category-item:hover {
+    background-color: #f0f0f1;
+    border-color: #ddd;
+}
+
+.ld-quiz-category-item.selected {
+    background-color: #e7f3ff;
+    border-color: #0073aa;
+    box-shadow: 0 1px 3px rgba(0, 115, 170, 0.1);
+}
+
+.ld-quiz-category-item.selected:hover {
+    background-color: #d0e7ff;
+}
+
+.ld-quiz-category-checkbox {
+    margin-right: 8px;
+}
+
+.ld-quiz-category-name {
+    font-weight: 500;
+}
+
+.ld-quiz-category-description {
+    color: #666;
+    font-style: italic;
+    margin-left: 4px;
+}
+
+.ld-save-notice {
+    margin-top: 15px;
+    padding: 10px;
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 4px;
+}
+</style>
+
+<hr style="margin: 15px 0;">
+<div class="ld-debug-info">
+    <small style="color: #666;">
+        <strong>Debug Info:</strong><br>
+        Found 27 question categories<br>
+        Using Taxonomy: ld_quiz_category<br>
+        Current Questions in Quiz: 0<br>
+        Post Type: sfwd-quiz<br>
+        Plugin Version: 1.0.0<br>
+        Post ID: 10579<br>
+    </small>
+</div>
+</div>
