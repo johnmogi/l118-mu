@@ -141,38 +141,48 @@ function inject_single_lesson_video() {
         
         // Check if this is a direct video file (MP4, WebM, etc.)
         if (preg_match('/\.(' . implode('|', array_keys($mime_types)) . ')(?:\?.*)?$/i', $video_url)) {
-            // Build video HTML properly
-            $video_html = '<div class="ld-video ld-video-responsive" id="' . $video_id . '" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden;">
+            
+            // SERVER-SIDE DEVICE DETECTION - Load only the appropriate video per device
+            $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
+            $is_mobile = wp_is_mobile() || preg_match('/Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i', $user_agent);
+            
+            // Determine which video to actually load based on device
+            $actual_video_url = '';
+            $aspect_ratio = '';
+            $device_type = '';
+            
+            if ($is_mobile && !empty($mobile_video_url) && $mobile_video_url !== $desktop_video) {
+                // Mobile device - load ONLY mobile video
+                $actual_video_url = $mobile_video_url;
+                $aspect_ratio = '177.78%'; // 9:16 vertical
+                $device_type = 'MOBILE';
+            } else {
+                // Desktop device - load ONLY desktop video  
+                $actual_video_url = $desktop_video;
+                $aspect_ratio = '56.25%'; // 16:9 horizontal
+                $device_type = 'DESKTOP';
+            }
+            
+            echo "<!-- DEBUG: Device Type: {$device_type} -->\n";
+            echo "<!-- DEBUG: Loading Video: {$actual_video_url} -->\n";
+            echo "<!-- DEBUG: Aspect Ratio: {$aspect_ratio} -->\n";
+            
+            // Build video HTML with ONLY the appropriate video source
+            $video_html = '<div class="ld-video ld-video-responsive" id="' . $video_id . '" style="position: relative; width: 100%; height: 0; padding-bottom: ' . $aspect_ratio . '; overflow: hidden;">
                 <video 
                     class="ld-video-player"
                     style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;" 
                     controls 
                     preload="metadata"
                     crossorigin="anonymous"
-                    playsinline>';
-            
-            // Add desktop source
-            if (!empty($desktop_video)) {
-                $video_html .= '<source src="' . esc_url($desktop_video) . '" type="' . $mime_type . '" media="(min-width: 768px)">';
-            }
-            
-            // Add mobile source if different from desktop
-            if (!empty($mobile_video_url) && $mobile_video_url !== $desktop_video) {
-                $video_html .= '<source src="' . esc_url($mobile_video_url) . '" type="' . $mime_type . '" media="(max-width: 767px)">';
-            }
-            
-            // Add fallback source
-            if (!empty($desktop_video)) {
-                $video_html .= '<source src="' . esc_url($desktop_video) . '" type="' . $mime_type . '">';
-            }
-            
-            $video_html .= 'Your browser does not support the video tag.
+                    playsinline>
+                    <source src="' . esc_url($actual_video_url) . '" type="' . $mime_type . '">
+                    Your browser does not support the video tag.
                 </video>
             </div>';
             
-            // Add debugging and styles
-            $video_html .= '<script>console.log("Desktop: ' . esc_js($desktop_video) . '"); console.log("Mobile: ' . esc_js($mobile_video) . '");</script>';
-            $video_html .= '<style>@media (max-width: 767px) { #' . $video_id . ' { padding-bottom: 177.78% !important; } } @media (min-width: 768px) { #' . $video_id . ' { padding-bottom: 56.25% !important; } }</style>';
+            // Add debugging
+            $video_html .= '<script>console.log("🎥 ' . $device_type . ' Device - Loading: ' . esc_js($actual_video_url) . '");</script>';
         }
         // Handle other video URLs (Vimeo, etc.) - fallback to iframe
         else if (filter_var($video_url, FILTER_VALIDATE_URL)) {
