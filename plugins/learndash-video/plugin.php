@@ -21,6 +21,14 @@ if (!defined('ABSPATH')) {
 // Test if plugin is loading and inject video script
 add_action('wp_head', function() {
     echo "<!-- LearnDash Video Plugin: LOADED -->\n";
+    echo "<!-- URGENT: If you see this comment, our plugin IS loading -->\n";
+});
+
+// Add a very obvious test on lesson pages
+add_action('wp_footer', function() {
+    if (is_singular('sfwd-lessons')) {
+        echo "<!-- URGENT TEST: Our video plugin is definitely running on this lesson page -->\n";
+    }
 });
 
 // Simple DOM injection approach - run in footer
@@ -46,8 +54,19 @@ function inject_single_lesson_video() {
     $video_url = !empty($lesson_settings['lesson_video_url']) ? $lesson_settings['lesson_video_url'] : '';
     $video_enabled = !empty($lesson_settings['lesson_video_enabled']);
     
-    echo "<!-- Video URL: {$video_url} -->\n";
-    echo "<!-- Video enabled: " . ($video_enabled ? 'true' : 'false') . " -->\n";
+    echo "<!-- DEBUG: Desktop Video URL from LearnDash: {$video_url} -->\n";
+    echo "<!-- DEBUG: Video enabled: " . ($video_enabled ? 'true' : 'false') . " -->\n";
+    
+    // Debug lesson materials - check all meta keys
+    $all_meta = get_post_meta($lesson_id);
+    echo "<!-- DEBUG: All lesson meta keys: " . print_r(array_keys($all_meta), true) . " -->\n";
+    
+    $lesson_materials = get_post_meta($lesson_id, '_learndash-lesson-display-content-settings', true);
+    echo "<!-- DEBUG: Lesson materials data: " . print_r($lesson_materials, true) . " -->\n";
+    
+    // Try alternative meta keys
+    $alt_materials = get_post_meta($lesson_id, 'lesson_materials', true);
+    echo "<!-- DEBUG: Alt materials: " . print_r($alt_materials, true) . " -->\n";
     
     if (empty($video_url) || !$video_enabled) {
         echo "<!-- No video to inject -->\n";
@@ -66,7 +85,7 @@ function inject_single_lesson_video() {
         }
     }
     // Handle MP4 and other video formats
-    elseif (preg_match('/\.(mp4|webm|ogg|mov|avi)(\?.*)?$/i', $video_url)) {
+    else {
         // Determine MIME type based on extension
         $extension = strtolower(pathinfo(parse_url($video_url, PHP_URL_PATH), PATHINFO_EXTENSION));
         $mime_types = [
@@ -78,21 +97,87 @@ function inject_single_lesson_video() {
         ];
         $mime_type = isset($mime_types[$extension]) ? $mime_types[$extension] : 'video/mp4';
         
-        $video_html = '<div class="ld-video" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden;">
-            <video 
-                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;" 
-                controls 
-                preload="metadata"
-                crossorigin="anonymous"
-                playsinline>
-                <source src="' . esc_url($video_url) . '" type="' . $mime_type . '">
-                Your browser does not support the video tag.
-            </video>
-        </div>';
-    }
-    // Handle other video URLs (Vimeo, etc.) - fallback to iframe
-    elseif (filter_var($video_url, FILTER_VALIDATE_URL)) {
-        $video_html = '<div class="ld-video"><iframe width="100%" height="400" src="' . esc_url($video_url) . '" frameborder="0" allowfullscreen></iframe></div>';
+        // Get mobile video from lesson settings
+        $mobile_video_url = '';
+        $sfwd_lessons = get_post_meta($lesson_id, '_sfwd-lessons', true);
+        echo "<!-- DEBUG: _sfwd-lessons meta: " . print_r($sfwd_lessons, true) . " -->\n";
+        
+        // Extract mobile video URL from serialized array
+        if (!empty($sfwd_lessons['sfwd-lessons_lesson_materials_enabled']) && 
+            $sfwd_lessons['sfwd-lessons_lesson_materials_enabled'] === 'on' &&
+            !empty($sfwd_lessons['sfwd-lessons_lesson_materials'])) {
+            
+            $mobile_video_url = trim($sfwd_lessons['sfwd-lessons_lesson_materials']);
+            echo "<!-- DEBUG: Found mobile video URL in _sfwd-lessons: {$mobile_video_url} -->\n";
+        } else {
+            echo "<!-- DEBUG: No mobile video URL found in _sfwd-lessons meta -->\n";
+            
+            // Fallback: check post content as well
+            $post_content = get_post_field('post_content', $lesson_id);
+            if (!empty($post_content) && preg_match('/https?:\/\/[^\s<>"\']+\.(' . implode('|', array_keys($mime_types)) . ')(?:\?[^\s<>"\']*)?/i', $post_content, $matches)) {
+                $mobile_video_url = $matches[0];
+                echo "<!-- DEBUG: Found mobile video URL in post content: {$mobile_video_url} -->\n";
+            } else {
+                echo "<!-- DEBUG: No mobile video URL found in post content -->\n";
+                
+                // Fallback: try meta fields
+                $lesson_materials = get_post_meta($lesson_id, '_learndash-lesson-display-content-settings', true);
+                if (!empty($lesson_materials['lesson_materials'])) {
+                    $materials_content = $lesson_materials['lesson_materials'];
+                    if (preg_match('/https?:\/\/[^\s<>"\']+\.(' . implode('|', array_keys($mime_types)) . ')(?:\?[^\s<>"\']*)?/i', $materials_content, $matches)) {
+                        $mobile_video_url = $matches[0];
+                        echo "<!-- DEBUG: Found mobile video URL in meta: {$mobile_video_url} -->\n";
+                    }
+                }
+            }
+        }
+        
+        // Generate unique ID for this video
+        $video_id = 'ld-video-' . md5($video_url);
+        
+        // Determine which video to use based on available sources
+        $desktop_video = $video_url; // From LearnDash video URL field
+        $mobile_video = !empty($mobile_video_url) ? $mobile_video_url : $video_url; // From lesson materials or fallback
+        
+        // Check if this is a direct video file (MP4, WebM, etc.)
+        if (preg_match('/\.(' . implode('|', array_keys($mime_types)) . ')(?:\?.*)?$/i', $video_url)) {
+            // Build video HTML properly
+            $video_html = '<div class="ld-video ld-video-responsive" id="' . $video_id . '" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden;">
+                <video 
+                    class="ld-video-player"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;" 
+                    controls 
+                    preload="metadata"
+                    crossorigin="anonymous"
+                    playsinline>';
+            
+            // Add desktop source
+            if (!empty($desktop_video)) {
+                $video_html .= '<source src="' . esc_url($desktop_video) . '" type="' . $mime_type . '" media="(min-width: 768px)">';
+            }
+            
+            // Add mobile source if different from desktop
+            if (!empty($mobile_video_url) && $mobile_video_url !== $desktop_video) {
+                $video_html .= '<source src="' . esc_url($mobile_video_url) . '" type="' . $mime_type . '" media="(max-width: 767px)">';
+            }
+            
+            // Add fallback source
+            if (!empty($desktop_video)) {
+                $video_html .= '<source src="' . esc_url($desktop_video) . '" type="' . $mime_type . '">';
+            }
+            
+            $video_html .= 'Your browser does not support the video tag.
+                </video>
+            </div>';
+            
+            // Add debugging and styles
+            $video_html .= '<script>console.log("Desktop: ' . esc_js($desktop_video) . '"); console.log("Mobile: ' . esc_js($mobile_video) . '");</script>';
+            $video_html .= '<style>@media (max-width: 767px) { #' . $video_id . ' { padding-bottom: 177.78% !important; } } @media (min-width: 768px) { #' . $video_id . ' { padding-bottom: 56.25% !important; } }</style>';
+        }
+        // Handle other video URLs (Vimeo, etc.) - fallback to iframe
+        else if (filter_var($video_url, FILTER_VALIDATE_URL)) {
+            $video_html = '<div class="ld-video"><iframe width="100%" height="400" src="' . esc_url($video_url) . '" frameborder="0" allowfullscreen></iframe></div>';
+        }
     }
     
     if (empty($video_html)) {
@@ -214,17 +299,56 @@ function inject_course_accordion_videos() {
                 ];
                 $mime_type = isset($mime_types[$extension]) ? $mime_types[$extension] : 'video/mp4';
                 
-                $video_html = '<div class="ld-video" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden; border-radius: 8px;">
+                // Check if there's a mobile version of the video
+                $mobile_video_url = '';
+                
+                // Try different mobile video naming conventions
+                $mobile_patterns = [
+                    // Replace .mp4 with -mobile.mp4
+                    '/\.(' . implode('|', array_keys($mime_types)) . ')(\?.*)?$/i' => '-mobile.$1$2',
+                    // Add /mobile/ before filename
+                    '/\/([^\/]+)\.(' . implode('|', array_keys($mime_types)) . ')(\?.*)?$/i' => '/mobile/$1.$2$3'
+                ];
+                
+                foreach ($mobile_patterns as $pattern => $replacement) {
+                    $potential_mobile_url = preg_replace($pattern, $replacement, $video_url);
+                    if ($potential_mobile_url !== $video_url) {
+                        $mobile_video_url = $potential_mobile_url;
+                        break;
+                    }
+                }
+                
+                // Generate unique ID for this video
+                $video_id = 'ld-video-accordion-' . md5($video_url);
+                
+                $video_html = '<div class="ld-video ld-video-responsive" id="' . $video_id . '" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden; border-radius: 8px;">
                     <video 
+                        class="ld-video-player"
                         style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; border-radius: 8px;" 
                         controls 
                         preload="metadata"
                         crossorigin="anonymous"
                         playsinline>
+                        <source src="' . esc_url($video_url) . '" type="' . $mime_type . '" media="(min-width: 768px)">
+                        ' . (!empty($mobile_video_url) ? '<source src="' . esc_url($mobile_video_url) . '" type="' . $mime_type . '" media="(max-width: 767px)">' : '') . '
                         <source src="' . esc_url($video_url) . '" type="' . $mime_type . '">
                         Your browser does not support the video tag.
                     </video>
-                </div>';
+                </div>
+                <style>
+                /* Mobile vertical aspect ratio for accordion videos */
+                @media (max-width: 767px) {
+                    #' . $video_id . ' {
+                        padding-bottom: 177.78% !important; /* 9:16 aspect ratio for vertical videos */
+                    }
+                }
+                /* Desktop horizontal aspect ratio for accordion videos */
+                @media (min-width: 768px) {
+                    #' . $video_id . ' {
+                        padding-bottom: 56.25% !important; /* 16:9 aspect ratio for horizontal videos */
+                    }
+                }
+                </style>';
             }
             // Handle other video URLs (Vimeo, etc.) - fallback to iframe
             elseif (filter_var($video_url, FILTER_VALIDATE_URL)) {
