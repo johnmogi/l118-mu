@@ -37,6 +37,12 @@ class LD_Instructor_Quiz_Categories {
         
         // Add category diagnostic page
         add_action('admin_menu', array($this, 'add_category_diagnostic_page'));
+        
+        // Initialize instructor capabilities
+        add_action('init', array($this, 'ensure_instructor_capabilities'));
+        
+        // Hook into instructor dashboard to show quiz categories
+        add_action('wp_loaded', array($this, 'setup_instructor_hooks'));
     }
     
     /**
@@ -50,20 +56,29 @@ class LD_Instructor_Quiz_Categories {
      * Add meta box to quiz edit screen
      */
     public function add_quiz_categories_meta_box() {
-        add_meta_box(
-            'ld-instructor-quiz-categories',
-            __('Quiz Question Categories', 'ld-instructor-quiz-cats'),
-            array($this, 'render_quiz_categories_meta_box'),
-            'sfwd-quiz',
-            'normal',
-            'high'
-        );
+        // Check if current user can see this meta box
+        if (current_user_can('manage_options') || current_user_can('edit_others_posts') || $this->is_instructor()) {
+            add_meta_box(
+                'ld-instructor-quiz-categories',
+                __('Quiz Question Categories', 'ld-instructor-quiz-cats'),
+                array($this, 'render_quiz_categories_meta_box'),
+                'sfwd-quiz',
+                'normal',
+                'high'
+            );
+        }
     }
     
     /**
      * Render the quiz categories meta box
      */
     public function render_quiz_categories_meta_box($post) {
+        // Check if user can edit this specific quiz
+        if (!$this->user_can_edit_quiz($post->ID)) {
+            echo '<p>' . __('You do not have permission to edit categories for this quiz.', 'ld-instructor-quiz-cats') . '</p>';
+            return;
+        }
+        
         // Get the taxonomy that questions actually use
         $used_taxonomy = $this->get_used_taxonomy();
         
@@ -76,11 +91,13 @@ class LD_Instructor_Quiz_Categories {
             'number' => 0  // Ensure no limit is applied
         ));
         
-        // Debug: Log category count
-        error_log('LD Quiz Categories: Found ' . count($question_categories) . ' categories in taxonomy: ' . $used_taxonomy);
-        if (count($question_categories) > 0) {
-            $category_names = array_map(function($cat) { return $cat->name; }, array_slice($question_categories, 0, 5));
-            error_log('LD Quiz Categories: First 5 categories: ' . implode(', ', $category_names));
+        // Debug: Log category count (only for admins)
+        if (current_user_can('manage_options')) {
+            error_log('LD Quiz Categories: Found ' . count($question_categories) . ' categories in taxonomy: ' . $used_taxonomy);
+            if (count($question_categories) > 0) {
+                $category_names = array_map(function($cat) { return $cat->name; }, array_slice($question_categories, 0, 5));
+                error_log('LD Quiz Categories: First 5 categories: ' . implode(', ', $category_names));
+            }
         }
         
         // Get currently selected categories
@@ -89,11 +106,16 @@ class LD_Instructor_Quiz_Categories {
             $selected_categories = array();
         }
         
+        // Add instructor-specific context
+        $is_instructor = $this->is_instructor();
+        
         // Include the template
         include LD_INSTRUCTOR_QUIZ_CATS_PLUGIN_DIR . 'templates/meta-box-quiz-categories.php';
         
-        // Include debug info
-        include LD_INSTRUCTOR_QUIZ_CATS_PLUGIN_DIR . 'templates/debug-info.php';
+        // Include debug info only for admins
+        if (current_user_can('manage_options')) {
+            include LD_INSTRUCTOR_QUIZ_CATS_PLUGIN_DIR . 'templates/debug-info.php';
+        }
     }
     
     /**
@@ -113,12 +135,14 @@ class LD_Instructor_Quiz_Categories {
             return;
         }
         
-        // Check user permissions - works for both admin and instructor roles
-        if (!current_user_can('edit_post', $post_id)) {
+        // Enhanced permission check for both admin and instructor roles
+        if (!$this->user_can_edit_quiz($post_id)) {
             // Log permission issue for debugging
             if (defined('WP_DEBUG') && WP_DEBUG) {
+                $user = wp_get_current_user();
                 error_log('LD Quiz Categories: User does not have permission to edit this quiz (ID: ' . $post_id . ')');
-                error_log('LD Quiz Categories: Current user capabilities: ' . print_r(wp_get_current_user()->allcaps, true));
+                error_log('LD Quiz Categories: User ID: ' . $user->ID . ', Roles: ' . implode(', ', $user->roles));
+                error_log('LD Quiz Categories: Quiz author: ' . get_post_field('post_author', $post_id));
             }
             unset($processing[$post_id]);
             return;
@@ -1682,5 +1706,279 @@ class LD_Instructor_Quiz_Categories {
      */
     public function get_version() {
         return LD_INSTRUCTOR_QUIZ_CATS_VERSION;
+    }
+    
+    /**
+     * Enhanced permission check that works for both admin and instructor roles
+     */
+    public function user_can_edit_quiz($post_id) {
+        $user = wp_get_current_user();
+        
+        // Admin users can edit any quiz
+        if (current_user_can('manage_options') || current_user_can('edit_others_posts')) {
+            return true;
+        }
+        
+        // Standard edit_post check for regular users
+        if (current_user_can('edit_post', $post_id)) {
+            return true;
+        }
+        
+        // Special handling for instructor role
+        if ($this->is_instructor($user)) {
+            return $this->instructor_can_edit_quiz($user->ID, $post_id);
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if user has instructor role
+     */
+    public function is_instructor($user = null) {
+        if (!$user) {
+            $user = wp_get_current_user();
+        }
+        
+        $instructor_roles = array('wdm_instructor', 'instructor', 'group_leader');
+        
+        foreach ($instructor_roles as $role) {
+            if (in_array($role, (array) $user->roles)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if instructor can edit a specific quiz
+     */
+    public function instructor_can_edit_quiz($instructor_id, $quiz_id) {
+        // Check if instructor is the author of the quiz
+        $quiz_author = get_post_field('post_author', $quiz_id);
+        if ($quiz_author == $instructor_id) {
+            return true;
+        }
+        
+        // Check if instructor has access through course assignment
+        $course_id = $this->get_quiz_course_id($quiz_id);
+        if ($course_id) {
+            // Check if instructor is assigned to the course
+            if ($this->instructor_assigned_to_course($instructor_id, $course_id)) {
+                return true;
+            }
+        }
+        
+        // Check if instructor has been explicitly granted access to this quiz
+        $allowed_instructors = get_post_meta($quiz_id, '_ld_quiz_allowed_instructors', true);
+        if (is_array($allowed_instructors) && in_array($instructor_id, $allowed_instructors)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Get the course ID associated with a quiz
+     */
+    public function get_quiz_course_id($quiz_id) {
+        // Try to get course from quiz meta
+        $course_id = get_post_meta($quiz_id, 'course_id', true);
+        if ($course_id) {
+            return $course_id;
+        }
+        
+        // Try to get course from lesson/topic association
+        $lesson_id = get_post_meta($quiz_id, 'lesson_id', true);
+        if ($lesson_id) {
+            $course_id = get_post_meta($lesson_id, 'course_id', true);
+            if ($course_id) {
+                return $course_id;
+            }
+        }
+        
+        // Try to find course through LearnDash functions if available
+        if (function_exists('learndash_get_course_id')) {
+            return learndash_get_course_id($quiz_id);
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if instructor is assigned to a course
+     */
+    public function instructor_assigned_to_course($instructor_id, $course_id) {
+        // Check if instructor is the course author
+        $course_author = get_post_field('post_author', $course_id);
+        if ($course_author == $instructor_id) {
+            return true;
+        }
+        
+        // Check LearnDash instructor assignment if available
+        if (function_exists('learndash_get_course_instructors')) {
+            $instructors = learndash_get_course_instructors($course_id);
+            if (is_array($instructors) && in_array($instructor_id, $instructors)) {
+                return true;
+            }
+        }
+        
+        // Check custom instructor meta
+        $course_instructors = get_post_meta($course_id, '_course_instructors', true);
+        if (is_array($course_instructors) && in_array($instructor_id, $course_instructors)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Ensure instructor role has necessary capabilities
+     */
+    public function ensure_instructor_capabilities() {
+        $instructor_roles = array('wdm_instructor', 'instructor', 'group_leader');
+        
+        foreach ($instructor_roles as $role_name) {
+            $role = get_role($role_name);
+            if ($role) {
+                // Add quiz-related capabilities
+                $role->add_cap('edit_sfwd-quizzes');
+                $role->add_cap('edit_published_sfwd-quizzes');
+                $role->add_cap('edit_sfwd-questions');
+                $role->add_cap('edit_published_sfwd-questions');
+                $role->add_cap('manage_ld_quiz_categories');
+                
+                // Add basic post capabilities if not present
+                if (!$role->has_cap('edit_posts')) {
+                    $role->add_cap('edit_posts');
+                }
+                if (!$role->has_cap('edit_published_posts')) {
+                    $role->add_cap('edit_published_posts');
+                }
+            }
+        }
+    }
+    
+    /**
+     * Setup hooks for instructor dashboard integration
+     */
+    public function setup_instructor_hooks() {
+        // Only setup if we're in instructor context
+        if ($this->is_instructor()) {
+            // Add instructor-specific AJAX handlers
+            add_action('wp_ajax_ld_instructor_save_quiz_categories', array($this, 'ajax_instructor_save_quiz_categories'));
+            
+            // Modify meta box display for instructors
+            add_filter('learndash_quiz_edit_metabox_fields', array($this, 'add_instructor_quiz_category_fields'), 10, 2);
+        }
+    }
+    
+    /**
+     * AJAX handler specifically for instructor quiz category saving
+     */
+    public function ajax_instructor_save_quiz_categories() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'instructor_save_quiz_categories')) {
+            wp_die('Security check failed');
+        }
+        
+        $quiz_id = intval($_POST['quiz_id']);
+        $categories = array_map('intval', $_POST['categories']);
+        
+        // Check if instructor can edit this quiz
+        if (!$this->user_can_edit_quiz($quiz_id)) {
+            wp_send_json_error('Permission denied');
+            return;
+        }
+        
+        // Save categories
+        update_post_meta($quiz_id, '_ld_quiz_question_categories', $categories);
+        
+        // Auto-populate quiz with questions
+        $this->populate_quiz_with_questions($quiz_id, $categories);
+        
+        wp_send_json_success('Quiz categories saved successfully');
+    }
+    
+    /**
+     * Add quiz category fields to instructor dashboard
+     */
+    public function add_instructor_quiz_category_fields($fields, $quiz_id) {
+        if (!$this->is_instructor() || !$this->user_can_edit_quiz($quiz_id)) {
+            return $fields;
+        }
+        
+        // Add our custom field for quiz categories
+        $fields['quiz_categories'] = array(
+            'name' => 'quiz_categories',
+            'label' => __('Question Categories', 'ld-instructor-quiz-cats'),
+            'type' => 'custom',
+            'callback' => array($this, 'render_instructor_quiz_categories_field')
+        );
+        
+        return $fields;
+    }
+    
+    /**
+     * Render quiz categories field for instructor dashboard
+     */
+    public function render_instructor_quiz_categories_field($quiz_id) {
+        $used_taxonomy = $this->get_used_taxonomy();
+        $question_categories = get_terms(array(
+            'taxonomy' => $used_taxonomy,
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'ASC',
+            'number' => 0
+        ));
+        
+        $selected_categories = get_post_meta($quiz_id, '_ld_quiz_question_categories', true);
+        if (!is_array($selected_categories)) {
+            $selected_categories = array();
+        }
+        
+        echo '<div class="ld-instructor-quiz-categories">';
+        echo '<p>' . __('Select question categories to include in this quiz:', 'ld-instructor-quiz-cats') . '</p>';
+        
+        foreach ($question_categories as $category) {
+            $is_selected = in_array($category->term_id, $selected_categories);
+            echo '<label>';
+            echo '<input type="checkbox" name="quiz_categories[]" value="' . esc_attr($category->term_id) . '"' . checked($is_selected, true, false) . '>';
+            echo ' ' . esc_html($category->name) . ' (' . intval($category->count) . ')';
+            echo '</label><br>';
+        }
+        
+        echo '</div>';
+        
+        // Add JavaScript for AJAX saving
+        ?>
+        <script>
+        jQuery(document).ready(function($) {
+            $('.ld-instructor-quiz-categories input[type="checkbox"]').change(function() {
+                var categories = [];
+                $('.ld-instructor-quiz-categories input[type="checkbox"]:checked').each(function() {
+                    categories.push($(this).val());
+                });
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'ld_instructor_save_quiz_categories',
+                        quiz_id: <?php echo $quiz_id; ?>,
+                        categories: categories,
+                        nonce: '<?php echo wp_create_nonce('instructor_save_quiz_categories'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            console.log('Categories saved successfully');
+                        }
+                    }
+                });
+            });
+        });
+        </script>
+        <?php
     }
 }
